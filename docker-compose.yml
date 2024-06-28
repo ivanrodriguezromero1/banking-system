@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  customer-service:
+    build:
+      context: ./customer-service
+    ports:
+      - "8081:8081"
+    environment:
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - OAUTH_JWK_SET_URI=${OAUTH_JWK_SET_URI}
+    networks:
+      - banking-network
+
+  product-service:
+    build:
+      context: ./product-service
+    ports:
+      - "8082:8082"
+    environment:
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - OAUTH_JWK_SET_URI=${OAUTH_JWK_SET_URI}
+    networks:
+      - banking-network
+
+  bff-service:
+    build:
+      context: ./bff-service
+    ports:
+      - "8083:8083"
+    environment:
+      - CUSTOMER_SERVICE_URL=http://customer-service:8081/customers
+      - PRODUCT_SERVICE_URL=http://product-service:8082/products
+      - OAUTH_JWK_SET_URI=${OAUTH_JWK_SET_URI}
+    networks:
+      - banking-network
+
+networks:
+  banking-network:
+    driver: bridge
