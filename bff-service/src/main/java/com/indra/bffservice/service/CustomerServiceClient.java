@@ -1,7 +1,7 @@
 package com.indra.bffservice.service;
 
 import com.indra.bffservice.model.CustomerDTO;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -11,8 +11,9 @@ public class CustomerServiceClient {
 
     private final WebClient webClient;
 
-    public CustomerServiceClient(@Value("${customer.service.url}") String customerServiceUrl) {
-        this.webClient = WebClient.builder().baseUrl(customerServiceUrl).build();
+    @Autowired
+    public CustomerServiceClient(WebClient customerServiceWebClient) {
+        this.webClient = customerServiceWebClient;
     }
 
     public Mono<CustomerDTO> getCustomerByUniqueCode(String uniqueCode) {

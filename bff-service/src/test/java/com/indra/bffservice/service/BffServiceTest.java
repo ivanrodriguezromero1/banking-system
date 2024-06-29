@@ -1,11 +1,10 @@
 package com.indra.bffservice.service;
 
-import com.indra.bffservice.model.CustomerProductDTO;
 import com.indra.bffservice.model.CustomerDTO;
+import com.indra.bffservice.model.CustomerProductDTO;
 import com.indra.bffservice.model.ProductDTO;
-import com.indra.bffservice.model.mapper.CustomerProductMapper;
-import com.indra.bankingstarter.util.CustomException;
 import com.indra.bankingstarter.encryption.EncryptionService;
+import com.indra.bankingstarter.util.CustomException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -14,19 +13,20 @@ import org.mockito.MockitoAnnotations;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 
 class BffServiceTest {
 
     @Mock
-    private CustomerServiceClient customerServiceClient;
+    private CustomerServiceClientContext customerServiceClientContext;
 
     @Mock
-    private ProductServiceClient productServiceClient;
+    private ProductServiceClientContext productServiceClientContext;
 
     @Mock
     private EncryptionService encryptionService;
@@ -34,60 +34,55 @@ class BffServiceTest {
     @InjectMocks
     private BffService bffService;
 
-    private final CustomerProductMapper customerProductMapper = CustomerProductMapper.INSTANCE;
-
-    private CustomerDTO customerDTO;
-    private ProductDTO productDTO;
-    private CustomerProductDTO customerProductDTO;
-
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        customerDTO = new CustomerDTO();
-        customerDTO.setId("1");
-        customerDTO.setFirstName("John");
-        customerDTO.setLastName("Doe");
-        customerDTO.setDocumentType("ID");
-        customerDTO.setDocumentNumber("12345");
-
-        productDTO = new ProductDTO();
-        productDTO.setId("1");
-        productDTO.setName("Savings Account");
-        productDTO.setType("Account");
-        productDTO.setBalance(1000.0);
-
-        List<ProductDTO> products = Arrays.asList(productDTO);
-
-        customerProductDTO = new CustomerProductDTO();
-        customerProductDTO.setCustomerId(customerDTO.getId());
-        customerProductDTO.setFirstName(customerDTO.getFirstName());
-        customerProductDTO.setLastName(customerDTO.getLastName());
-        customerProductDTO.setDocumentType(customerDTO.getDocumentType());
-        customerProductDTO.setDocumentNumber(customerDTO.getDocumentNumber());
-        customerProductDTO.setProducts(products);
     }
 
     @Test
     void getCustomerProduct_shouldReturnCustomerProduct() {
+        CustomerDTO mockCustomer = new CustomerDTO("1", "Ivan", "Rodriguez", "DNI", "46794348", "traceId");
+        ProductDTO mockProduct = new ProductDTO("1", "Product A", "Type A", 100.0, "traceId");
+        List<ProductDTO> mockProductList = Collections.singletonList(mockProduct);
+
         given(encryptionService.decrypt(anyString())).willReturn("decryptedCode");
-        given(customerServiceClient.getCustomerByUniqueCode(anyString())).willReturn(Mono.just(customerDTO));
-        given(productServiceClient.getProductsByCustomerId(anyString())).willReturn(Mono.just(productDTO).flux().collectList());
+        given(customerServiceClientContext.getCustomerByUniqueCode("decryptedCode")).willReturn(Mono.just(mockCustomer));
+        given(productServiceClientContext.getProductByUniqueCode("1")).willReturn(Mono.just(mockProduct));
 
         Mono<CustomerProductDTO> result = bffService.getCustomerProduct("encryptedCode");
 
         StepVerifier.create(result)
-                .expectNext(customerProductDTO)
+                .assertNext(customerProductDTO -> {
+                    assertThat(customerProductDTO.getCustomerId()).isEqualTo("1");
+                    assertThat(customerProductDTO.getFirstName()).isEqualTo("Ivan");
+                    assertThat(customerProductDTO.getLastName()).isEqualTo("Rodriguez");
+                    assertThat(customerProductDTO.getDocumentType()).isEqualTo("DNI");
+                    assertThat(customerProductDTO.getDocumentNumber()).isEqualTo("46794348");
+                    assertThat(customerProductDTO.getProducts()).isEqualTo(mockProductList);
+                })
                 .verifyComplete();
     }
 
     @Test
-    void getCustomerProduct_shouldThrowCustomException() {
+    void getCustomerProduct_shouldThrowCustomExceptionWhenDecryptionFails() {
         given(encryptionService.decrypt(anyString())).willThrow(new CustomException("DECRYPTION_ERROR", "Error decrypting unique code"));
 
         Mono<CustomerProductDTO> result = bffService.getCustomerProduct("encryptedCode");
 
         StepVerifier.create(result)
                 .expectError(CustomException.class)
+                .verify();
+    }
+
+    @Test
+    void getCustomerProduct_shouldReturnErrorWhenCustomerNotFound() {
+        given(encryptionService.decrypt(anyString())).willReturn("decryptedCode");
+        given(customerServiceClientContext.getCustomerByUniqueCode("decryptedCode")).willReturn(Mono.empty());
+
+        Mono<CustomerProductDTO> result = bffService.getCustomerProduct("encryptedCode");
+
+        StepVerifier.create(result)
+                .expectError(RuntimeException.class)
                 .verify();
     }
 }

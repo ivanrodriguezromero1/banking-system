@@ -1,7 +1,6 @@
 package com.indra.bffservice.service;
 
 import com.indra.bffservice.model.CustomerProductDTO;
-import com.indra.bffservice.model.mapper.CustomerProductMapper;
 import com.indra.bffservice.model.CustomerDTO;
 import com.indra.bffservice.model.ProductDTO;
 import com.indra.bankingstarter.encryption.EncryptionService;
@@ -18,9 +17,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class BffService {
 
-    private final CustomerServiceClient customerServiceClient;
-    private final ProductServiceClient productServiceClient;
-    private final CustomerProductMapper customerProductMapper = CustomerProductMapper.INSTANCE;
+    private final CustomerServiceClientContext customerServiceClientContext;
+    private final ProductServiceClientContext productServiceClientContext;
     private final EncryptionService encryptionService;
 
     public Mono<CustomerProductDTO> getCustomerProduct(String uniqueCode) {
@@ -34,10 +32,10 @@ public class BffService {
             throw new CustomException("DECRYPTION_ERROR", "Error decrypting unique code", e);
         }
 
-        Mono<CustomerDTO> customerMono = customerServiceClient.getCustomerByUniqueCode(decryptedUniqueCode)
+        Mono<CustomerDTO> customerMono = customerServiceClientContext.getCustomerByUniqueCode(decryptedUniqueCode)
                 .contextWrite(ctx -> ctx.put("traceId", traceId));
         Mono<List<ProductDTO>> productsMono = customerMono
-                .flatMapMany(customer -> productServiceClient.getProductsByCustomerId(customer.getId())
+                .flatMapMany(customer -> productServiceClientContext.getProductByUniqueCode(customer.getId())
                         .contextWrite(ctx -> ctx.put("traceId", traceId)))
                 .collectList();
 
@@ -52,7 +50,6 @@ public class BffService {
                     customerProductDTO.setLastName(customer.getLastName());
                     customerProductDTO.setDocumentType(customer.getDocumentType());
                     customerProductDTO.setDocumentNumber(customer.getDocumentNumber());
-                    customerProductDTO.setUniqueCode(customer.getUniqueCode());
                     customerProductDTO.setProducts(products);
 
                     return customerProductDTO;

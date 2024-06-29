@@ -1,7 +1,7 @@
 package com.indra.bffservice.service;
 
 import com.indra.bffservice.model.ProductDTO;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
@@ -11,8 +11,9 @@ public class ProductServiceClient {
 
     private final WebClient webClient;
 
-    public ProductServiceClient(@Value("${product.service.url}") String productServiceUrl) {
-        this.webClient = WebClient.builder().baseUrl(productServiceUrl).build();
+    @Autowired
+    public ProductServiceClient(WebClient productServiceWebClient) {
+        this.webClient = productServiceWebClient;
     }
 
     public Flux<ProductDTO> getProductsByCustomerId(String customerId) {
